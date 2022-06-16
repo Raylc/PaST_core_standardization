@@ -15,10 +15,17 @@ library(ggpubr)
 library(rstatix)
 library(forcats)
 library(janitor)
+library(betareg)
 
 getwd()
 
-## Data ####
+## Data ##
+
+core_mass_data<-read.csv("data/cores_data.csv") %>%
+   rename("Participant"=Subject,
+          "Core"=nodule_number,
+          "starting_mass"=mass) %>%
+   select(c(Core,starting_mass))
 
 cores_data<-read.csv("data/cores_complete.csv") %>%
       mutate(area_volume=surface_area/volume) %>%
@@ -26,6 +33,19 @@ cores_data<-read.csv("data/cores_complete.csv") %>%
           Group = as.factor(Group),
           Core = as.factor(Core),
           Instructional.Condition=as.factor(Instructional.Condition))
+
+complete_experiment_data<-merge(cores_data, core_mass_data, by=c("Core"), all.x=T) %>%
+   mutate(core_start_end_mass=(starting_mass-Core.End.Mass)/starting_mass*100,
+          condition_threeway=case_when(Group=='expert'~"expert",
+                                       Instructional.Condition=='0'~"observation only",
+                                       Instructional.Condition=='1'~"active teaching",
+                                       TRUE~"NA"),
+          condition_threeway=factor(condition_threeway,
+                                    levels=c("observation only",
+                                             "active teaching","expert")),
+          sdi=Flake.Scars_10mm/surface_area,
+          cortex_prop=Cortex/100,
+          cortex_prop=cortex_prop+0.01)
 
 load("data/past_core.RData")
 
@@ -36,115 +56,101 @@ load("data/past_core.RData")
 complete_past_core_data_expert_nona<-complete_past_core_data_expert %>%
    na.omit()
 
-# Fig. 1 Flake scars/core mass
-ggplot(complete_past_core_data_expert, aes(x=condition_threeway, y=Flake.Scars_Core.Mass))+
-      geom_boxplot()+
-      geom_jitter()+
-      labs(x ="", y = "Flake scars/Core mass")
-
-summary(aov(Flake.Scars_Core.Mass ~ condition_threeway, complete_past_core_data_expert))
-bartlett.test(Flake.Scars_Core.Mass ~ condition_threeway, complete_past_core_data_expert)
-
-# Fig. 2 Flaking invasiveness
-ggplot(complete_past_core_data_expert, aes(x=condition_threeway, y=Avg.Scar.Max_Max.Core.Dimension))+
-   geom_boxplot()+   
-   geom_jitter()+
-      labs(x ="", y = "Flaking invasiveness")
-
-summary(aov(Avg.Scar.Max_Max.Core.Dimension ~ condition_threeway, complete_past_core_data_expert))
-bartlett.test(Avg.Scar.Max_Max.Core.Dimension ~ condition_threeway, complete_past_core_data_expert)
-
-# Fig. 3 Area of the battered platform
-ggplot(complete_past_core_data_expert, aes(x=condition_threeway, y=Area.of.Battered.Platform))+
-      geom_boxplot()+
-      geom_jitter()+
-      labs(x ="", y = "Area of platform batterning")
-
-summary(aov(Area.of.Battered.Platform ~ condition_threeway, complete_past_core_data_expert))
-bartlett.test(Area.of.Battered.Platform ~ condition_threeway, complete_past_core_data_expert)
-
-# Fig. 4 Area to volume ratio
-ggplot(complete_past_core_data_expert, aes(x=condition_threeway, y=area_volume))+
-      geom_boxplot()+
-      geom_jitter()+
-      labs(x ="", y = "Area to volume ratio")
-
-summary(aov(area_volume ~ condition_threeway, complete_past_core_data_expert))
-
-bartlett.test(area_volume ~ condition_threeway, complete_past_core_data_expert)
-
-### Variance in Totth (2006) attributes by core
-## Variance tests
-
-cores_data_no_expert<-filter(cores_data, !Group=="expert") %>%
-   mutate(Order=as.factor(Order)) %>%
-   droplevels(cores_data_no_expert$Group) %>%
-   na.omit()
-
-# Fig. 5 Flake scars/core mass
-ggplot(cores_data_no_expert, aes(x=as.factor(Order), y=Flake.Scars_Core.Mass))+
-      geom_boxplot()+
-      geom_jitter()+
-      labs(x ="", y = "Flake scars/Core mass")
-
-bartlett.test(Flake.Scars_Core.Mass ~ Order, cores_data_no_expert)
-
-# Fig. 6 Flaking invasiveness
-ggplot(cores_data_no_expert, aes(x=Order, y=Avg.Scar.Max_Max.Core.Dimension))+
-      geom_boxplot()+
-      geom_jitter()+
-      labs(x ="Core flaking order", y = "Flaking invasiveness")
-
-bartlett.test(Avg.Scar.Max_Max.Core.Dimension ~ Order, cores_data_no_expert)
-
-# Fig. 7 Platform battering
-ggplot(cores_data_no_expert, aes(x=Order, y=Area.of.Battered.Platform))+
+# Fig. 1 SDI
+ggplot(complete_experiment_data, aes(x=condition_threeway, y=sdi))+
    geom_boxplot()+
    geom_jitter()+
-   labs(x ="Core flaking order", y = "Area of platform battering")
+   labs(x="", y="Scar density index")
 
-bartlett.test(Area.of.Battered.Platform ~ Order, cores_data_no_expert)
+sdi_aov<-aov(sdi~condition_threeway, complete_past_core_data_expert)
+summary(sdi_aov)
+tukey_hsd(sdi_aov)
+bartlett.test(sdi~condition_threeway, complete_past_core_data_expert)
 
-# Fig. 8 Core area/volume
-ggplot(cores_data_no_expert, aes(x=Order, y=area_volume))+
+# Fig.2 relative mass
+ggplot(complete_experiment_data, aes(x=condition_threeway, y=core_start_end_mass))+
    geom_boxplot()+
    geom_jitter()+
-   labs(x ="Core flaking order", y = "Core area/volume")
+   labs(x="", y="Percentage mass reduced")
 
-bartlett.test(area_volume ~ Order, cores_data_no_expert)
+core_start_end_mass_aov<-aov(core_start_end_mass~condition_threeway, complete_experiment_data)
+summary(core_start_end_mass_aov)
+tukey_hsd(core_start_end_mass_aov)
+bartlett.test(core_start_end_mass~condition_threeway, complete_experiment_data)
+
+# Fig.3 Flaking invasiveness
+
+scar_size_core_size<-lm(Core.End.Mass~Avg.Flake.Scar.Max.Dimension_mm,
+                        data=complete_experiment_data, na.action=na.exclude)
+
+residuals<-residuals(lm(Max.Core.Dimension~Avg.Flake.Scar.Max.Dimension_mm,
+                        data=complete_experiment_data, na.action=na.exclude))
+
+complete_experiment_data$residuals<-residuals
+
+ggplot(complete_experiment_data, aes(x=condition_threeway, 
+                                     y=residuals))+
+   geom_boxplot()+
+   geom_jitter()+
+   labs(x="", y="Core max dimension/flake scar size residuals")
+
+invasiveness<-aov(residuals~condition_threeway, complete_experiment_data)
+summary(invasiveness)
+tukey_hsd(invasiveness)
+bartlett.test(residuals~condition_threeway, complete_experiment_data)
+
+# Fig. 4 Area of the battered platform
+ggplot(complete_experiment_data, aes(x=condition_threeway, y=Area.of.Battered.Platform))+
+   geom_boxplot()+
+   geom_jitter()+
+   labs(x="", y="Area of platform batterning")
+
+summary(aov(Area.of.Battered.Platform~condition_threeway, complete_experiment_data))
+bartlett.test(Area.of.Battered.Platform~condition_threeway, complete_experiment_data)
+
+# Fig. 5 percentage cortex
+ggplot(complete_experiment_data, aes(x=condition_threeway, y=cortex_prop))+
+   geom_boxplot()+
+   geom_jitter()+
+   labs(x="", y="Remaining cortex")
+
+
+betaMod<-betareg(cortex_prop~condition_threeway, data=complete_experiment_data)
+summary(betaMod)
 
 ## Gona comparisons
 
 # edge battering
 
-edgebattering_summary<-complete_past_core_data_expert %>%
-   mutate(battering_classes= case_when(Area.of.Battered.Platform <1 ~ "none",
-                                       Area.of.Battered.Platform %in% 1:24 ~ "low",
-                                       Area.of.Battered.Platform %in% 25:75 ~ "moderate",
-                                       Area.of.Battered.Platform %in% 76:100 ~ "high"),
-          battering_classes=factor(battering_classes,levels = c("none", "low", "moderate", "high"))) %>%
+edgebattering_summary<-complete_past_core_data_expert%>%
+   mutate(battering_classes=case_when(Area.of.Battered.Platform<1~"none",
+                                      Area.of.Battered.Platform%in%1:24~"low",
+                                      Area.of.Battered.Platform%in%25:75~"moderate",
+                                      Area.of.Battered.Platform%in%76:100~"high"),
+          battering_classes=factor(battering_classes,levels=c("none", "low", "moderate", "high"))) %>%
    select(Group,condition_threeway,battering_classes) %>%
    na.omit() %>%
    tabyl(condition_threeway,battering_classes)
-   #adorn_percentages("row") %>%
-   #adorn_pct_formatting(digits = 2)
+#adorn_percentages("row") %>%
+#adorn_pct_formatting(digits = 2)
 
 # flaking invasiveness
 
-invasiveness_summary<-complete_past_core_data_expert %>%
-   mutate(invasiveness= ntile(Avg.Scar.Max_Max.Core.Dimension, n=3),
-          invasiveness_class=case_when(invasiveness == 1 ~ "shallow",
-                                       invasiveness == 2 ~ "moderate",
-                                       invasiveness == 3 ~ "invasive"),
-          invasiveness=factor(invasiveness,levels = c("shallow", "moderate", "invasive"))) %>%
+invasiveness_summary<-complete_experiment_data%>%
+   mutate(invasiveness=ntile(residuals, n=3),
+          invasiveness_class=case_when(invasiveness==1~"invasive",
+                                       invasiveness==2~"moderate",
+                                       invasiveness==3~"shallow"),
+          invasiveness=factor(invasiveness,levels=c("shallow", "moderate", "invasive"))) %>%
    select(Group,condition_threeway,invasiveness_class) %>%
    drop_na(invasiveness_class) %>%
    tabyl(condition_threeway,invasiveness_class) %>%
    adorn_percentages("row") %>%
-   adorn_pct_formatting(digits = 2)
+   adorn_pct_formatting(digits=2)
 
 # cortex
 
-cortex_summary<-complete_past_core_data_expert %>%
+cortex_summary<-complete_past_core_data_expert%>%
    group_by(condition_threeway) %>%
    summarise(mean=mean(Cortex, na.rm=T), sd=sd(Cortex,na.rm=T))
+
