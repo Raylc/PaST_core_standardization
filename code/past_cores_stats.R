@@ -47,14 +47,9 @@ complete_experiment_data<-merge(cores_data, core_mass_data, by=c("Core"), all.x=
           cortex_prop=Cortex/100,
           cortex_prop=cortex_prop+0.01)
 
-load("data/past_core.RData")
-
 ### Individual Toth (2006) variables data plots
 ##group level comparisons
 ##variance tests
-
-complete_past_core_data_expert_nona<-complete_past_core_data_expert %>%
-   na.omit()
 
 # Fig. 1 SDI
 ggplot(complete_experiment_data, aes(x=condition_threeway, y=sdi))+
@@ -62,10 +57,10 @@ ggplot(complete_experiment_data, aes(x=condition_threeway, y=sdi))+
    geom_jitter()+
    labs(x="", y="Scar density index")
 
-sdi_aov<-aov(sdi~condition_threeway, complete_past_core_data_expert)
+sdi_aov<-aov(sdi~condition_threeway, complete_experiment_data)
 summary(sdi_aov)
 tukey_hsd(sdi_aov)
-bartlett.test(sdi~condition_threeway, complete_past_core_data_expert)
+bartlett.test(sdi~condition_threeway, complete_experiment_data)
 
 # Fig.2 relative mass
 ggplot(complete_experiment_data, aes(x=condition_threeway, y=core_start_end_mass))+
@@ -122,7 +117,7 @@ summary(betaMod)
 
 # edge battering
 
-edgebattering_summary<-complete_past_core_data_expert%>%
+edgebattering_summary<-complete_experiment_data%>%
    mutate(battering_classes=case_when(Area.of.Battered.Platform<1~"none",
                                       Area.of.Battered.Platform%in%1:24~"low",
                                       Area.of.Battered.Platform%in%25:75~"moderate",
@@ -150,7 +145,7 @@ invasiveness_summary<-complete_experiment_data%>%
 
 # cortex
 
-cortex_summary<-complete_past_core_data_expert%>%
+cortex_summary<-complete_experiment_data%>%
    group_by(condition_threeway) %>%
    summarise(mean=mean(Cortex, na.rm=T), sd=sd(Cortex,na.rm=T))
 
